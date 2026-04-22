@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account and identity reference",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "referenceSelfieUrl": { "type": "string", "description": "URL of the identity selfie" },
+        "onboardingComplete": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "WardrobeItem": {
+      "title": "Wardrobe Item",
+      "description": "A digitized clothing item",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "originalPhotoUrl": { "type": "string" },
+        "category": { "type": "string", "description": "e.g. Outerwear, Dresses, Tops" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "versatilityScore": { "type": "number" },
+        "vibe": { "type": "string", "description": "e.g. Minimalist, Chic, Bohemian" },
+        "isArchived": { "type": "boolean" },
+        "isApproved": { "type": "boolean" },
+        "color": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "imageUrl", "createdAt"]
+    },
+    "HarvestSession": {
+      "title": "Harvest Session",
+      "description": "Record of a Google Photos harvest",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "status": { "type": "string", "enum": ["processing", "completed", "failed"] },
+        "foundItemsCount": { "type": "integer" },
+        "timeWindow": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "users/{userId}/wardrobe/{itemId}": {
+      "schema": "WardrobeItem",
+      "description": "Individual wardrobe items for a user"
+    },
+    "users/{userId}/harvests/{harvestId}": {
+      "schema": "HarvestSession",
+      "description": "History of harvest sessions"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --color-gold: #D4AF37;
+  --color-luxury-black: #050505;
+  --color-card-bg: #111111;
+  --color-border-subtle: rgba(255, 255, 255, 0.1);
+}
+
+body {
+  background-color: var(--color-luxury-black);
+  color: white;
+  font-family: var(--font-sans);
+}
+
+.serif {
+  font-family: var(--font-serif);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}
+

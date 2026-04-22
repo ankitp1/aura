@@ -1,0 +1,13 @@
+{
+  "name": "Aura",
+  "description": "An AI-powered wardrobe engine that captures your personal style essence by harvesting unique clothing items from your photo history using intelligent clustering and computer vision.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "AI Wardrobe Management",
+    "Smart Harvesting",
+    "Generative Styling"
+  ]
+}
