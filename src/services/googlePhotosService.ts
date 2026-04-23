@@ -3,27 +3,14 @@ export async function fetchGooglePhotos(accessToken: string, months: number) {
   const dateLimit = new Date();
   dateLimit.setMonth(dateLimit.getMonth() - months);
   
+  console.log("Using access token for Photos API:", accessToken ? accessToken.substring(0, 15) + "..." : "UNDEFINED");
+  
   try {
-    const response = await fetch('https://photoslibrary.googleapis.com/v1/mediaItems:search', {
-      method: 'POST',
+    const response = await fetch('https://photoslibrary.googleapis.com/v1/mediaItems?pageSize=100', {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        pageSize: 100, // Process in batches
-        filters: {
-          dateFilter: {
-            ranges: [{
-              startDate: { year: dateLimit.getFullYear(), month: dateLimit.getMonth() + 1, day: dateLimit.getDate() },
-              endDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() }
-            }]
-          },
-          mediaTypeFilter: {
-             mediaTypes: ['PHOTO']
-          }
-        }
-      })
+        'Authorization': `Bearer ${accessToken}`
+      }
     });
     
     if (!response.ok) {
@@ -36,6 +23,6 @@ export async function fetchGooglePhotos(accessToken: string, months: number) {
     return data.mediaItems || [];
   } catch (error) {
     console.error('Error fetching Google Photos:', error);
-    return [];
+    throw error;
   }
 }

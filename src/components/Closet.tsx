@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Filter, Plus, Smartphone, Sparkles, Grid3X3, List } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
-import { collection, query, onSnapshot, orderBy, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { cn } from '../lib/utils';
 import { WardrobeItem } from '../types';
 
@@ -63,6 +63,37 @@ export default function Closet({ onSync }: ClosetProps) {
     await updateDoc(doc(db, 'users', userId, 'wardrobe', item.id), {
       isAvailable: item.isAvailable === false ? true : false
     });
+  };
+
+  const handleResetWardrobe = async () => {
+    const confirmText = "WARNING: This will permanently delete your entire digital closet and all generated looks, forcing you to restart the onboarding process. Are you sure?";
+    if (!window.confirm(confirmText)) return;
+    
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    try {
+      // 1. Fetch all wardrobe items
+      const wardrobeSnap = await getDocs(collection(db, 'users', userId, 'wardrobe'));
+      
+      // 2. Batch delete all wardrobe items
+      const batch = writeBatch(db);
+      wardrobeSnap.docs.forEach((d) => {
+        batch.delete(d.ref);
+      });
+      await batch.commit();
+
+      // 3. Reset onboarding status
+      await updateDoc(doc(db, 'users', userId), {
+        onboardingComplete: false
+      });
+      
+      // Force reload to hit App.tsx routing logic
+      window.location.reload();
+    } catch (err) {
+      console.error("Error resetting wardrobe:", err);
+      alert("Failed to reset wardrobe.");
+    }
   };
 
   const filteredItems = items.filter(item => {
@@ -128,7 +159,8 @@ export default function Closet({ onSync }: ClosetProps) {
               />
             </div>
             <button className="px-6 py-2 border border-white/20 text-[10px] uppercase tracking-widest hover:bg-white hover:text-black transition-colors rounded-sm">Filter Casuals</button>
-            <button onClick={onSync} className="px-6 py-2 bg-gold text-black text-[10px] uppercase tracking-widest font-bold rounded-sm">Sync Capsule</button>
+            <button onClick={handleResetWardrobe} className="px-6 py-2 border border-red-900/50 text-red-500 hover:bg-red-500 hover:text-black text-[10px] uppercase tracking-widest font-bold rounded-sm transition-all">Reset Wardrobe</button>
+            <button onClick={onSync} className="px-6 py-2 bg-gold text-black text-[10px] uppercase tracking-widest font-bold rounded-sm hover:bg-white transition-all">Sync Capsule</button>
           </div>
         </div>
 

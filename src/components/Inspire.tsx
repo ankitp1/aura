@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Send, Library, Plus, ChevronRight, Wand2, Lightbulb } from 'lucide-react';
+import { Sparkles, Send, Library, Plus, ChevronRight, Wand2, Lightbulb, Share2 } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 import { generateStylingAdvice } from '../services/geminiService';
+import html2canvas from 'html2canvas';
 import { fetchWeather, WeatherData, getWeatherIcon } from '../services/weatherService';
 import { cn } from '../lib/utils';
 import { WardrobeItem } from '../types';
@@ -15,10 +16,11 @@ export default function Inspire() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [result, setResult] = useState<{
-    outfits: { name: string, items: string[], explanation: string }[],
+    outfits: { name: string, items: string[], itemIds: string[], explanation: string }[],
     missingPieceSuggestion: string
   } | null>(null);
   const [savedOutfits, setSavedOutfits] = useState<Set<number>>(new Set());
+  const [sharingIdx, setSharingIdx] = useState<number | null>(null);
 
   const handleQuickAdd = (text: string) => {
     setGoal(prev => prev ? `${prev}, ${text}` : text);
@@ -36,6 +38,64 @@ export default function Inspire() {
       setSavedOutfits(prev => new Set(prev).add(index));
     } catch (err) {
       console.error("Save failed", err);
+    }
+  };
+
+  const handleShareOutfit = async (outfit: any, idx: number) => {
+    setSharingIdx(idx);
+    try {
+      const element = document.getElementById(`outfit-card-${idx}`);
+      let file: File | null = null;
+      
+      if (element) {
+        // Capture the card visually
+        const canvas = await html2canvas(element, { useCORS: true, backgroundColor: '#050505', scale: 2 });
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (blob) {
+          file = new File([blob], `aura_outfit_${idx}.png`, { type: 'image/png' });
+        }
+      }
+
+      let text = `Aura styled me for: "${goal}"\n\n👗 ${outfit.name}\n`;
+      
+      if (outfit.itemIds && outfit.itemIds.length > 0) {
+         outfit.itemIds.forEach((id: string) => {
+           const closetItem = closet.find(c => c.id === id);
+           if (closetItem) {
+             text += `- ${closetItem.color} ${closetItem.category}\n`;
+           }
+         });
+      } else {
+         outfit.items.forEach((item: string) => { text += `- ${item}\n`; });
+      }
+      
+      text += `\n✨ " ${outfit.explanation} "\n\nWhat do you think?`;
+      
+      // Share payload
+      if (navigator.share) {
+        if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `My Aura Outfit: ${outfit.name}`,
+            text: text,
+            files: [file]
+          });
+        } else {
+          // Fallback to text only if device doesn't support file sharing
+          await navigator.share({
+            title: `My Aura Outfit: ${outfit.name}`,
+            text: text
+          });
+        }
+      } else {
+        await navigator.clipboard.writeText(text);
+        alert("Outfit copied to clipboard! (Browser does not support native sharing)");
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error("Error sharing", err);
+      }
+    } finally {
+      setSharingIdx(null);
     }
   };
 
@@ -200,34 +260,97 @@ export default function Inspire() {
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {result.outfits.map((outfit, idx) => (
-                <div key={idx} className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col group hover:border-gold/50 transition-all">
-                  <div className="w-10 h-10 rounded-full bg-gold/10 flex items-center justify-center mb-4 group-hover:bg-gold transition-colors">
+                <div id={`outfit-card-${idx}`} key={idx} className="bg-[#050505] border border-white/10 rounded-2xl p-6 flex flex-col group hover:border-gold/50 transition-all shadow-2xl relative">
+                  <div className="w-10 h-10 rounded-full bg-gold/10 flex items-center justify-center mb-4 group-hover:bg-gold transition-colors" data-html2canvas-ignore>
                     <Sparkles className="w-5 h-5 text-gold group-hover:text-black" />
                   </div>
                   <h4 className="text-lg font-bold mb-4 uppercase tracking-tight">{outfit.name}</h4>
+                  
+                  {/* Visual Flatlay of Wardrobe Items */}
+                  {outfit.itemIds && outfit.itemIds.length > 0 && (
+                    <div className="flex -space-x-4 mb-6 pl-2">
+                      {outfit.itemIds.map((id, i) => {
+                        const closetItem = closet.find(c => c.id === id);
+                        if (!closetItem) return null;
+                        const tag = closetItem.category?.charAt(0).toUpperCase() || '?';
+                        return (
+                          <div 
+                            key={i} 
+                            className="relative z-10 w-16 h-24 rounded-md overflow-hidden border-2 border-[#1a1a1a] shadow-2xl hover:-translate-y-2 hover:z-50 hover:scale-110 transition-all cursor-pointer group/item"
+                            title={`${closetItem.color} ${closetItem.category}`}
+                          >
+                            <img 
+                              src={`/api/proxy-image?url=${encodeURIComponent(closetItem.imageUrl)}`} 
+                              crossOrigin="anonymous" 
+                              className="w-full h-full object-cover" 
+                              onError={(e) => {
+                                // Fallback to raw URL if proxy fails (sharing might still fail, but images will show)
+                                e.currentTarget.src = closetItem.imageUrl;
+                                e.currentTarget.removeAttribute('crossorigin');
+                              }}
+                            />
+                            <div className="absolute top-1 left-1 w-4 h-4 bg-black/80 backdrop-blur-md border border-white/20 rounded-[3px] flex items-center justify-center shadow-lg">
+                              <span className="text-[8px] font-black text-gold">{tag}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-2 mb-6">
-                    {outfit.items.map((item, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-gold/50" />
-                        <span className="text-xs text-white/80">{item}</span>
-                      </div>
-                    ))}
+                    {outfit.itemIds && outfit.itemIds.length > 0 ? (
+                      outfit.itemIds.map((id, i) => {
+                        const closetItem = closet.find(c => c.id === id);
+                        if (!closetItem) return null;
+                        const tag = closetItem.category?.charAt(0).toUpperCase() || '?';
+                        return (
+                          <div key={i} className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded-[3px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                              <span className="text-[8px] font-black text-gold/80">{tag}</span>
+                            </div>
+                            <span className="text-xs text-white/80 font-medium">{closetItem.color} {closetItem.category}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      outfit.items.map((item, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-gold/50" />
+                          <span className="text-xs text-white/80">{item}</span>
+                        </div>
+                      ))
+                    )}
                   </div>
                   <p className="text-[11px] text-gray-500 leading-relaxed italic mt-auto mb-4">
                     {outfit.explanation}
                   </p>
-                  <button 
-                    onClick={() => handleSaveOutfit(outfit, idx)}
-                    disabled={savedOutfits.has(idx)}
-                    className={cn(
-                      "w-full py-2 rounded-lg text-[9px] uppercase tracking-widest font-bold transition-all",
-                      savedOutfits.has(idx) 
-                        ? "bg-white/10 text-white/40 cursor-not-allowed border border-white/5" 
-                        : "bg-gold text-black hover:bg-white"
-                    )}
-                  >
-                    {savedOutfits.has(idx) ? 'Saved to Lookbook' : 'Save Outfit'}
-                  </button>
+                  <div className="flex gap-2" data-html2canvas-ignore>
+                    <button 
+                      onClick={() => handleSaveOutfit(outfit, idx)}
+                      disabled={savedOutfits.has(idx)}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg text-[9px] uppercase tracking-widest font-bold transition-all",
+                        savedOutfits.has(idx) 
+                          ? "bg-white/10 text-white/40 cursor-not-allowed border border-white/5" 
+                          : "bg-gold text-black hover:bg-white"
+                      )}
+                    >
+                      {savedOutfits.has(idx) ? 'Saved' : 'Save'}
+                    </button>
+                    <button 
+                      onClick={() => handleShareOutfit(outfit, idx)}
+                      disabled={sharingIdx === idx}
+                      className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all flex items-center justify-center border border-white/10 group/share"
+                      title="Share Outfit Image"
+                    >
+                      {sharingIdx === idx ? (
+                        <div className="w-4 h-4 border-2 border-white/40 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Share2 className="w-4 h-4 text-white/60 group-hover/share:text-white" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

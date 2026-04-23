@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Sparkles, ShieldCheck, Library, ChevronRight, History } from 'lucide-react';
 import { auth } from '../lib/firebase';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
 
 interface LandingProps {
   onStart: () => void;
@@ -10,16 +10,39 @@ interface LandingProps {
 
 export default function Landing({ onStart }: LandingProps) {
   const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    provider.addScope('https://www.googleapis.com/auth/photoslibrary.readonly');
-    
     try {
-      const result = await signInWithPopup(auth, provider);
-      // Get Google Access Token for Photos API
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential?.accessToken) {
-        localStorage.setItem('google_photos_token', credential.accessToken);
-      }
+      const response = await fetch('/api/auth/google/url');
+      const { url } = await response.json();
+
+      const width = 500;
+      const height = 600;
+      const left = window.screenX + (window.innerWidth - width) / 2;
+      const top = window.screenY + (window.innerHeight - height) / 2;
+      
+      const popup = window.open(url, 'Google Auth', `width=${width},height=${height},left=${left},top=${top}`);
+
+      const handleMessage = async (event: MessageEvent) => {
+        if (event.data?.type === 'GOOGLE_AUTH_SUCCESS') {
+          window.removeEventListener('message', handleMessage);
+          
+          const tokens = event.data.tokens;
+          if (tokens.access_token) {
+            localStorage.setItem('aura_gphotos_token', tokens.access_token);
+          }
+          
+          if (tokens.id_token) {
+            try {
+              const credential = GoogleAuthProvider.credential(tokens.id_token);
+              await signInWithCredential(auth, credential);
+            } catch (err: any) {
+              console.error("Firebase Sign-In Error:", err);
+              alert("Firebase failed to accept the Google token: " + err.message + "\n\n(You likely need to whitelist this exact OAuth Client ID in your Firebase Console -> Authentication -> Google Sign-in settings)");
+            }
+          }
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
     } catch (error) {
       console.error("Login Error:", error);
     }

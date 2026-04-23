@@ -150,6 +150,73 @@ export async function extractItemsFromPhotos(photos: { baseUrl: string, id: stri
 }
 
 /**
+ * Analyzes a batch of manually uploaded photos and extracts unique wardrobe items.
+ */
+export async function extractItemsFromManualUploads(images: string[]) {
+  const model = "gemini-3-flash-preview";
+  
+  const prompt = `
+    I am providing a list of manually uploaded photos of clothing.
+    Your task is to:
+    1. Identify UNIQUE clothing items.
+    2. Categorize them and assign a 'Vibe' aura.
+    
+    Return a JSON array of objects:
+    - id (use the exact Image ID provided, e.g., "0", "1")
+    - category (Outerwear, Tops, Bottoms, Dresses, Shoes, Accessories, etc.)
+    - color
+    - vibe (Minimalist, Bohemian, Chic, Streetwear, etc.)
+    - reasoning
+  `;
+
+  // Filter to a manageable batch size to avoid payload overflow
+  const batch = images.slice(0, 20); 
+
+  const contents: any[] = [{ text: prompt }];
+  
+  batch.forEach((img, idx) => {
+    try {
+      const match = img.match(/^data:(image\/[a-zA-Z0-9+-.]+);base64,(.+)$/);
+      if (match) {
+        contents.push({ text: `Image ID: ${idx}` });
+        contents.push({ inlineData: { mimeType: match[1], data: match[2] } });
+      }
+    } catch (e) {
+      console.warn("Skipping malformed image data", idx);
+    }
+  });
+
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              category: { type: Type.STRING },
+              color: { type: Type.STRING },
+              vibe: { type: Type.STRING },
+              reasoning: { type: Type.STRING }
+            },
+            required: ["id", "category", "color", "vibe"]
+          }
+        }
+      }
+    });
+
+    return JSON.parse(response.text || "[]");
+  } catch (error) {
+    console.error("Gemini Manual Extraction Error:", error);
+    return [];
+  }
+}
+
+/**
  * Generates outfit recommendations based on the user's closet, a style goal, and current weather.
  */
 export async function generateStylingAdvice(closetItems: any[], goal: string, weatherContext?: string) {
@@ -160,13 +227,14 @@ export async function generateStylingAdvice(closetItems: any[], goal: string, we
     ${weatherContext ? `WEATHER CONTEXT (Next 6 hours): ${weatherContext}` : ""}
     
     Here is their capsule wardrobe:
-    ${closetItems.map(item => `- ${item.color} ${item.category} (${item.vibe})`).join('\n')}
+    ${closetItems.map(item => `[ID: ${item.id}] - ${item.color} ${item.category} (${item.vibe})`).join('\n')}
     
     Tasks:
     1. Recommend 3 distinct outfits using ONLY items from the list above.
     2. Ensure outfits are highly appropriate for the provided weather context (e.g. layering for cold/rain, breathable for heat).
     3. For each outfit, explain WHY it works for the goal, the vibe, AND how it protects/suits the weather condition.
-    4. Suggest a "missing piece" they might consider adding to complete these looks.
+    4. For each outfit, return the exact IDs of the items you selected in the 'itemIds' array.
+    5. Suggest a "missing piece" they might consider adding to complete these looks.
     
     Return in JSON format.
   `;
@@ -187,9 +255,10 @@ export async function generateStylingAdvice(closetItems: any[], goal: string, we
                 properties: {
                   name: { type: Type.STRING },
                   items: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  itemIds: { type: Type.ARRAY, items: { type: Type.STRING } },
                   explanation: { type: Type.STRING }
                 },
-                required: ["name", "items", "explanation"]
+                required: ["name", "items", "itemIds", "explanation"]
               }
             },
             missingPieceSuggestion: { type: Type.STRING }

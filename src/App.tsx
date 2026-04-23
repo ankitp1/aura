@@ -45,34 +45,39 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (userSnap.exists()) {
-          const data = userSnap.data() as UserData;
-          setUserData(data);
-          if (!data.seenPitch) {
-            setView('pitch');
-          } else if (data.onboardingComplete) {
-            setView('closet');
+        try {
+          const userRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userRef);
+          
+          if (userSnap.exists()) {
+            const data = userSnap.data() as UserData;
+            setUserData(data);
+            if (!data.seenPitch) {
+              setView('pitch');
+            } else if (data.onboardingComplete) {
+              setView('closet');
+            } else {
+              setView('onboarding');
+            }
           } else {
-            setView('onboarding');
+            // New User
+            const hasSeenLocal = localStorage.getItem('hasSeenPublicPitch') === 'true';
+            const newData: UserData = {
+              uid: user.uid,
+              email: user.email || '',
+              displayName: user.displayName || '',
+              photoURL: user.photoURL || '',
+              onboardingComplete: false,
+              seenPitch: hasSeenLocal,
+              createdAt: new Date().toISOString()
+            };
+            await setDoc(userRef, newData);
+            setUserData(newData);
+            setView(hasSeenLocal ? 'onboarding' : 'pitch');
           }
-        } else {
-          // New User
-          const hasSeenLocal = localStorage.getItem('hasSeenPublicPitch') === 'true';
-          const newData: UserData = {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            onboardingComplete: false,
-            seenPitch: hasSeenLocal,
-            createdAt: new Date().toISOString()
-          };
-          await setDoc(userRef, newData);
-          setUserData(newData);
-          setView(hasSeenLocal ? 'onboarding' : 'pitch');
+        } catch (error) {
+          console.error("Firestore user sync error:", error);
+          alert("Failed to sync user data: " + (error as Error).message);
         }
       } else {
         setView(localStorage.getItem('hasSeenPublicPitch') === 'true' ? 'landing' : 'pitch_public');
